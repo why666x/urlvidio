@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频管理后台</title>
+    <script>
+        // ========== 配置项：修改为你的 API 地址 ==========
+        const API_BASE = 'https://vidioapi.yuanqv.top';
+        
+        // 管理密码（也可以每次弹窗输入，更安全）
+        let ADMIN_PASSWORD = '';
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f1115;
+            color: #e6e6e6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap; gap: 12px;
+        }
+        .header h1 { font-size: 22px; font-weight: 600; }
+        .btn {
+            padding: 8px 16px; border: none; border-radius: 8px;
+            font-size: 14px; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-primary { background: #3b82f6; color: #fff; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: #2a2f3a; color: #e6e6e6; }
+        .btn-secondary:hover { background: #374151; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        
+        .toolbar {
+            background: #171a21;
+            border: 1px solid #242831;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex; gap: 10px; flex-wrap: wrap;
+        }
+        .toolbar input {
+            flex: 1; min-width: 200px;
+            padding: 10px 14px;
+            background: #1f232c;
+            border: 1px solid #2a2f3a;
+            border-radius: 8px;
+            color: #fff; font-size: 14px; outline: none;
+        }
+        
+        .video-table {
+            background: #171a21;
+            border: 1px solid #242831;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .table-header {
+            display: grid;
+            grid-template-columns: 1fr 80px 120px;
+            padding: 12px 16px;
+            background: #1f232c;
+            font-size: 13px; font-weight: 600; color: #9ca3af;
+        }
+        .video-row {
+            display: grid;
+            grid-template-columns: 1fr 80px 120px;
+            padding: 14px 16px;
+            border-top: 1px solid #242831;
+            align-items: center;
+            gap: 12px;
+        }
+        .video-info .name {
+            font-size: 14px; font-weight: 500; margin-bottom: 4px;
+        }
+        .video-info .url {
+            font-size: 12px; color: #6b7280;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .video-type { text-align: center; }
+        .type-tag {
+            padding: 2px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            display: inline-block;
+        }
+        .type-m3u8 { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .type-mp4 { background: rgba(34,197,94,0.2); color: #4ade80; }
+        .video-actions {
+            display: flex; gap: 6px; justify-content: flex-end;
+        }
+        
+        .empty {
+            padding: 60px 20px; text-align: center; color: #6b7280;
+        }
+        .empty-icon { font-size: 40px; margin-bottom: 12px; }
+        
+        /* 模态框 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: #1f232c;
+            border-radius: 12px;
+            width: 480px; max-width: 100%;
+            border: 1px solid #2a2f3a;
+            overflow: hidden;
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #2a2f3a;
+            font-size: 16px; font-weight: 600;
+        }
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block; margin-bottom: 6px;
+            font-size: 13px; color: #9ca3af;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%; padding: 10px 14px;
+            background: #171a21;
+            border: 1px solid #2a2f3a;
+            border-radius: 8px;
+            color: #fff; font-size: 14px; outline: none;
+            font-family: inherit;
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .modal-footer {
+            padding: 12px 20px;
+            border-top: 1px solid #2a2f3a;
+            display: flex; justify-content: flex-end; gap: 10px;
+        }
+
+        /* 密码输入框 */
+        .password-modal .modal {
+            width: 360px;
+        }
+        
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .table-header { display: none; }
+            .video-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .video-actions { justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎛️ 视频管理后台</h1>
+            <a href="javascript:history.back()" class="btn btn-secondary">← 返回</a>
+        </div>
+
+        <div class="toolbar">
+            <input type="text" id="searchInput" placeholder="搜索视频名称或链接...">
+            <button class="btn btn-primary" onclick="openAddModal()">➕ 添加视频</button>
+        </div>
+
+        <div class="video-table">
+            <div class="table-header">
+                <div>视频信息</div>
+                <div>类型</div>
+                <div>操作</div>
+            </div>
+            <div id="videoList">
+                <div class="empty">
+                    <div class="empty-icon">⏳</div>
+                    <p>加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <div class="modal-header" id="modalTitle">添加视频</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>视频名称 *</label>
+                    <input type="text" id="inputName" placeholder="输入视频名称">
+                </div>
+                <div class="form-group">
+                    <label>视频链接 *</label>
+                    <input type="text" id="inputUrl" placeholder="粘贴 m3u8 或 MP4 链接">
+                </div>
+                <div class="form-group">
+                    <label>备注（可选）</label>
+                    <textarea id="inputRemark" placeholder="添加备注信息"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveVideo()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 密码输入模态框 -->
+    <div class="modal-overlay password-modal" id="passwordModal">
+        <div class="modal">
+            <div class="modal-header">请输入管理密码</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <input type="password" id="passwordInput" placeholder="管理密码">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="submitPassword()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let videos = [];
+        let editingId = null;
+
+        // 初始化
+        async function init() {
+            // 先要求输入密码
+            showPasswordModal();
+        }
+
+        function showPasswordModal() {
+            document.getElementById('passwordModal').classList.add('show');
+            document.getElementById('passwordInput').focus();
+        }
+
+        function submitPassword() {
+            ADMIN_PASSWORD = document.getElementById('passwordInput').value;
+            if (!ADMIN_PASSWORD) {
+                alert('请输入密码');
+                return;
+            }
+            document.getElementById('passwordModal').classList.remove('show');
+            loadVideos().then(() => {
+                renderList();
+                bindEvents();
+            }).catch(e => {
+                alert('密码错误或连接失败');
+                showPasswordModal();
+            });
+        }
+
+        // 生成 Basic Auth 头
+        function getAuthHeaders() {
+            const token = btoa('admin:' + ADMIN_PASSWORD);
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': 'Basic ' + token
+            };
+        }
+
+        async function loadVideos() {
+            const res = await fetch(`${API_BASE}/api/videos`, {
+                headers: getAuthHeaders()
+            });
+            if (res.status === 401) throw new Error('Unauthorized');
+            videos = await res.json();
+        }
+
+        function renderList(filter = '') {
+            const listEl = document.getElementById('videoList');
+            const filtered = videos.filter(v => 
+                v.name.toLowerCase().includes(filter.toLowerCase()) ||
+                v.url.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty">
+                        <div class="empty-icon">📭</div>
+                        <p>暂无视频</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(v => `
+                <div class="video-row">
+                    <div class="video-info">
+                        <div class="name">${escapeHtml(v.name)}</div>
+                        <div class="url">${escapeHtml(v.url)}</div>
+                    </div>
+                    <div class="video-type">
+                        <span class="type-tag type-${v.type}">${v.type}</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="editVideo(${v.id})">编辑</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteVideo(${v.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('modalTitle').textContent = '添加视频';
+            document.getElementById('inputName').value = '';
+            document.getElementById('inputUrl').value = '';
+            document.getElementById('inputRemark').value = '';
+            document.getElementById('modal').classList.add('show');
+            document.getElementById('inputName').focus();
+        }
+
+        function editVideo(id) {
+            const v = videos.find(x => x.id === id);
+            if (!v) return;
+            editingId = id;
+            document.getElementById('modalTitle').textContent = '编辑视频';
+            document.getElementById('inputName').value = v.name;
+            document.getElementById('inputUrl').value = v.url;
+            document.getElementById('inputRemark').value = v.remark || '';
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+            editingId = null;
+        }
+
+        async function saveVideo() {
+            const name = document.getElementById('inputName').value.trim();
+            const url = document.getElementById('inputUrl').value.trim();
+            const remark = document.getElementById('inputRemark').value.trim();
+
+            if (!name || !url) {
+                alert('请填写名称和链接');
+                return;
+            }
+
+            const data = { name, url, remark };
+
+            if (editingId) {
+                await fetch(`${API_BASE}/api/videos/${editingId}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(data)
+                });
+            } else {
+                await fetch(`${API_BASE}/api/videos`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(data)
+                });
+            }
+
+            await loadVideos();
+            renderList(document.getElementById('searchInput').value);
+            closeModal();
+        }
+
+        async function deleteVideo(id) {
+            if (!confirm('确定删除这个视频？')) return;
+            await fetch(`${API_BASE}/api/videos/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            await loadVideos();
+            renderList(document.getElementById('searchInput').value);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function bindEvents() {
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                renderList(e.target.value);
+            });
+
+            document.getElementById('modal').addEventListener('click', (e) => {
+                if (e.target.id === 'modal') closeModal();
+            });
+
+            // 回车保存
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && document.getElementById('modal').classList.contains('show')) {
+                    if (e.target.tagName !== 'TEXTAREA') saveVideo();
+                }
+                if (e.key === 'Escape') closeModal();
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
